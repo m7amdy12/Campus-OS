@@ -292,9 +292,39 @@
   const SB_KEY = 'sb_publishable_qvpWVf_9AUlFzp3F5MTiEw_nu-Zp3dx';
   const sb = supabase.createClient(SB_URL, SB_KEY);
 
-  // 2. Modal Logic
+  // 2. App State
+  let currentUser = null;
+  let currentProfile = null;
   const modal = document.getElementById('statusModal');
 
+  // 3. Initialize App
+  async function init() {
+    console.log("CAMPUS OS Booting up...");
+    const { data: { session } } = await sb.auth.getSession();
+    
+    if (session) {
+      currentUser = session.user;
+      console.log("Logged in as:", currentUser.email);
+      // For now, we'll just use their email prefix as a name
+      currentProfile = { name: currentUser.email.split('@')[0] };
+    } else {
+      console.log("No user found. Creating a temporary anonymous login...");
+      // Auto-login anonymously for testing (we will build real auth later)
+      const { data, error } = await sb.auth.signInAnonymously();
+      if (error) {
+        alert("Make sure 'Anonymous Sign-ins' are enabled in Supabase Auth settings!");
+        return;
+      }
+      currentUser = data.user;
+      currentProfile = { name: 'Student_' + Math.floor(Math.random() * 1000) };
+      console.log("Created anon user:", currentProfile.name);
+    }
+    
+    // Load the current statuses from the database
+    loadStatuses();
+  }
+
+  // 4. Modal Logic
   function openStatusModal() {
     modal.classList.add('on');
   }
@@ -303,17 +333,71 @@
     modal.classList.remove('on');
   }
 
-  function setStatus(statusText, colorClass) {
-    // For now, just show an alert. We will connect this to the DB next.
-    alert(`Status set to: ${statusText}`);
-    closeStatusModal();
+  // 5. Save Status to Supabase
+  async function setStatus(statusText, colorClass) {
+    if (!currentUser) return;
+    
+    closeStatusModal(); // Close immediately so it feels fast
+    
+    // Delete the old status for this user, then insert the new one
+    await sb.from('statuses').delete().eq('user_id', currentUser.id);
+    
+    const { error } = await sb.from('statuses').insert({
+      user_id: currentUser.id,
+      display_name: currentProfile.name,
+      status_text: statusText,
+      status_color: colorClass
+    });
+
+    if (error) {
+      console.error(error);
+      alert("Failed to save status. Check console.");
+    } else {
+      // Reload the list
+      loadStatuses();
+    }
   }
 
-  // 3. Test Supabase Connection
-  console.log("CAMPUS OS Booting up...");
-  sb.auth.getSession().then(({ data: { session } }) => {
-    console.log("Supabase connected! Current session:", session);
-  });
+  // 6. Load Statuses from Supabase
+  async function loadStatuses() {
+    const { data, error } = await sb
+      .from('statuses')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error("Error loading statuses:", error);
+      return;
+    }
+
+    // Get the container where we will put the cards
+    const squadList = document.querySelector('.squad-list');
+    squadList.innerHTML = ''; // Clear the hardcoded ones
+
+    if (!data || data.length === 0) {
+      squadList.innerHTML = '<div style="color:var(--mut); font-size:14px; text-align:center;">No one is online yet. Be the first!</div>';
+      return;
+    }
+
+    // Loop through the data and create HTML for each person
+    data.forEach(person => {
+      const initial = person.display_name.charAt(0).toUpperCase();
+      
+      const item = document.createElement('div');
+      item.className = 'squad-item';
+      item.innerHTML = `
+        <div class="avatar">${initial}<span class="status-dot ${person.status_color}"></span></div>
+        <div class="squad-info">
+          <div class="squad-name">${person.display_name}</div>
+          <div class="squad-status">${person.status_text}</div>
+        </div>
+      `;
+      squadList.appendChild(item);
+    });
+  }
+
+  // Boot the app
+  init();
 </script>
 
 </body>
