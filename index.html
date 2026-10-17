@@ -370,25 +370,24 @@
       return;
     }
 
-    // Get the container where we will put the cards
     const squadList = document.querySelector('.squad-list');
-    squadList.innerHTML = ''; // Clear the hardcoded ones
+    squadList.innerHTML = ''; 
 
     if (!data || data.length === 0) {
-      squadList.innerHTML = '<div style="color:var(--mut); font-size:14px; text-align:center;">No one is online yet. Be the first!</div>';
+      squadList.innerHTML = '<div style="color:var(--mut); font-size:14px; text-align:center; padding: 10px;">No one is online yet. Be the first!</div>';
       return;
     }
 
-    // Loop through the data and create HTML for each person
     data.forEach(person => {
-      const initial = person.display_name.charAt(0).toUpperCase();
+      const name = person.display_name || 'Anonymous Student';
+      const initial = name.charAt(0).toUpperCase();
       
       const item = document.createElement('div');
       item.className = 'squad-item';
       item.innerHTML = `
         <div class="avatar">${initial}<span class="status-dot ${person.status_color}"></span></div>
         <div class="squad-info">
-          <div class="squad-name">${person.display_name}</div>
+          <div class="squad-name">${name}</div>
           <div class="squad-status">${person.status_text}</div>
         </div>
       `;
@@ -396,8 +395,24 @@
     });
   }
 
+  // 7. Listen to Real-Time Database Changes
+  function listenToDatabase() {
+    sb.channel('custom-all-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'statuses' },
+        (payload) => {
+          console.log('Database changed! Updating UI...', payload);
+          loadStatuses(); 
+        }
+      )
+      .subscribe();
+  }
+
   // Boot the app
-  init();
+  init().then(() => {
+    listenToDatabase(); 
+  });
 </script>
 
 </body>
