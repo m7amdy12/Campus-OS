@@ -337,23 +337,20 @@
   async function setStatus(statusText, colorClass) {
     if (!currentUser) return;
     
-    closeStatusModal(); // Close immediately so it feels fast
+    closeStatusModal();
     
-    // Delete the old status for this user, then insert the new one
-    await sb.from('statuses').delete().eq('user_id', currentUser.id);
-    
-    const { error } = await sb.from('statuses').insert({
+    const { error } = await sb.from('statuses').upsert({
       user_id: currentUser.id,
       display_name: currentProfile.name,
       status_text: statusText,
-      status_color: colorClass
-    });
+      status_color: colorClass,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
 
     if (error) {
       console.error(error);
-      alert("Failed to save status. Check console.");
+      alert("Failed to save status: " + error.message);
     } else {
-      // Reload the list
       loadStatuses();
     }
   }
