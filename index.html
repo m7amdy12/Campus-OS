@@ -85,18 +85,11 @@
     </div>
 
     <div id="signup-extras" style="display: none;">
-      <label style="display:block; font-size:13px; color:var(--mut); margin-bottom:6px;">Choose an Avatar</label>
-      <div class="avatar-grid">
-        <div class="avatar-option selected" data-emoji="🦊">🦊</div>
-        <div class="avatar-option" data-emoji="🐼">🐼</div>
-        <div class="avatar-option" data-emoji="🐯">🐯</div>
-        <div class="avatar-option" data-emoji="🦁">🦁</div>
-        <div class="avatar-option" data-emoji="🐸">🐸</div>
-        <div class="avatar-option" data-emoji="🐨">🐨</div>
-        <div class="avatar-option" data-emoji="🐙">🐙</div>
-        <div class="avatar-option" data-emoji="🦉">🦉</div>
-        <div class="avatar-option" data-emoji="🦄">🦄</div>
-        <div class="avatar-option" data-emoji="👽">👽</div>
+      <label style="display:block; font-size:13px; color:var(--mut); margin-bottom:6px;">Choose a Profile Picture</label>
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+        <div id="avatar-preview" style="width:60px; height:60px; border-radius:50%; background:var(--line); display:grid; place-items:center; font-size:24px; background-size:cover; background-position:center;">📷</div>
+        <input type="file" id="avatar-upload" accept="image/*" style="display:none;" onchange="previewImage(event)">
+        <button type="button" class="btn" style="width:auto; padding:8px 16px; background:var(--line);" onclick="document.getElementById('avatar-upload').click()">Upload Image</button>
       </div>
     </div>
 
@@ -165,20 +158,37 @@
   let currentUser = null;
   let currentProfile = null;
   let isSignup = false;
-  let selectedAvatar = '🦊';
+ let selectedAvatarFile = null;
 
   const authScreen = document.getElementById('auth-screen');
   const appContainer = document.getElementById('app-container');
   const modal = document.getElementById('statusModal');
 
   // Avatar Selection
-  document.querySelectorAll('.avatar-option').forEach(opt => {
-    opt.onclick = () => {
-      document.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
-      opt.classList.add('selected');
-      selectedAvatar = opt.getAttribute('data-emoji');
+  // Preview the uploaded image
+  function previewImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Check if it's an image and under 2MB
+    if (!file.type.startsWith('image/')) {
+      alert("Please select an image file.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Image must be less than 2MB.");
+      return;
+    }
+
+    selectedAvatarFile = file;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const preview = document.getElementById('avatar-preview');
+      preview.style.backgroundImage = `url(${e.target.result})`;
+      preview.textContent = ''; // remove the camera emoji
     };
-  });
+    reader.readAsDataURL(file);
+  }
 
   function toggleAuthMode() {
     isSignup = !isSignup;
@@ -208,10 +218,34 @@
         const { data: authData, error: authError } = await sb.auth.signUp({ email: fakeEmail, password: password });
         if (authError) throw authError;
         
-        const { error: pErr } = await sb.from('profiles').insert({ id: authData.user.id, username: username, avatar_url: selectedAvatar });
+        let uploadedAvatarUrl = null;
+
+        // If they uploaded a picture, send it to Supabase Storage
+        if (selectedAvatarFile) {
+          const fileExt = selectedAvatarFile.name.split('.').pop();
+          const fileName = `${authData.user.id}-${Math.random()}.${fileExt}`;
+          
+          const { error: uploadError } = await sb.storage
+            .from('avatars')
+            .upload(fileName, selectedAvatarFile);
+            
+          if (!uploadError) {
+            // Get the public URL for the image
+            const { data: urlData } = sb.storage.from('avatars').getPublicUrl(fileName);
+            uploadedAvatarUrl = urlData.publicUrl;
+          }
+        }
+
+        // Save the profile with the image URL
+        const { error: pErr } = await sb.from('profiles').insert({ 
+          id: authData.user.id, 
+          username: username, 
+          avatar_url: uploadedAvatarUrl 
+        });
+        
         if (pErr) { if (pErr.code === '23505') throw new Error("Username is taken."); throw pErr; }
         
-        enterApp(authData.user, username, selectedAvatar);
+        enterApp(authData.user, username, uploadedAvatarUrl);
       } else {
         const { data: authData, error: authError } = await sb.auth.signInWithPassword({ email: fakeEmail, password: password });
         if (authError) throw new Error("Invalid username or password.");
@@ -265,7 +299,13 @@
       const avatar = profileMap[person.user_id] || name.charAt(0).toUpperCase();
       const item = document.createElement('div');
       item.className = 'squad-item';
-      item.innerHTML = `<div class="avatar">${avatar}<span class="status-dot ${person.status_color}"></span></div><div class="squad-info"><div class="squad-name">@${name}</div><div class="squad-status">${person.status_text}</div></div>`;
+      // Check if it's a URL (uploaded image) or a fallback letter
+      const isImage = avatar && avatar.startsWith('http');
+      const avatarHTML = isImage 
+        ? `<div class="avatar" style="background-image:url(${avatar}); background-size:cover; background-position:center;"></div>`
+        : `<div class="avatar">${avatar}</div>`;
+        
+      item.innerHTML = `${avatarHTML}<span class="status-dot ${person.status_color}" style="z-index:2;"></span><div class="squad-info"><div class="squad-name">@${name}</div><div class="squad-status">${person.status_text}</div></div>`;
       squadList.appendChild(item);
     });
   }
