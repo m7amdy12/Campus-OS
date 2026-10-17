@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CAMPUS OS // Pulse</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #09090b;
+    --surface: #18181b;
+    --line: #27272a;
+    --fg: #fafafa;
+    --mut: #a1a1aa;
+    --acc: #3b82f6;
+    --acc-hover: #2563eb;
+    --green: #22c55e;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --purple: #a855f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .brand { font-family: 'Space Grotesk', sans-serif; }
+  
+  /* Layout */
+  .app-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 24px 16px 80px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+  }
+  .brand {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .brand span { color: var(--acc); }
+  
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--mut);
+    margin: 0;
+  }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  /* Radar Feed */
+  .radar-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .radar-item:last-child { border-bottom: none; }
+  .radar-time {
+    color: var(--mut);
+    font-size: 12px;
+    min-width: 50px;
+  }
+
+  /* Who's Free Grid */
+  .squad-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .squad-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--line);
+    display: grid;
+    place-items: center;
+    font-weight: 600;
+    position: relative;
+  }
+  .status-dot {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--surface);
+  }
+  .status-dot.green { background: var(--green); }
+  .status-dot.orange { background: var(--orange); }
+  .status-dot.red { background: var(--red); }
+  .status-dot.purple { background: var(--purple); }
+
+  .squad-info {
+    flex: 1;
+  }
+  .squad-name {
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .squad-status {
+    font-size: 13px;
+    color: var(--mut);
+  }
+
+  /* Your Status Button */
+  .btn {
+    background: var(--acc);
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: var(--acc-hover); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.on { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px;
+    width: min(400px, 90vw);
+  }
+  .modal h2 { margin: 0 0 16px; font-size: 20px; }
+  .status-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .status-btn {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .status-btn:hover { border-color: var(--acc); }
+  .status-btn.selected { border-color: var(--acc); background: rgba(59,130,246,0.1); }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <header>
+    <div class="brand">CAMPUS<span>OS</span></div>
+  </header>
+
+  <!-- Campus Radar -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Campus Radar</h2>
+      <div class="live-dot"></div>
+    </div>
+    <div id="radarFeed">
+      <div class="radar-item">
+        <div class="radar-time">12:00</div>
+        <div class="radar-text">🍕 Free pizza at the Union!</div>
+      </div>
+      <div class="radar-item">
+        <div class="radar-time">11:45</div>
+        <div class="radar-text">📚 Library is packed (85%)</div>
+      </div>
+      <div class="radar-item">
+        <div class="radar-time">11:30</div>
+        <div class="radar-text">⚡ Gym is empty right now</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Who's Free -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Who's Free?</h2>
+    </div>
+    <div class="squad-list">
+      <div class="squad-item">
+        <div class="avatar">A<span class="status-dot green"></span></div>
+        <div class="squad-info">
+          <div class="squad-name">Ahmed</div>
+          <div class="squad-status">Free to hang out</div>
+        </div>
+      </div>
+      <div class="squad-item">
+        <div class="avatar">S<span class="status-dot orange"></span></div>
+        <div class="squad-info">
+          <div class="squad-name">Sarah</div>
+          <div class="squad-status">Studying at Library</div>
+        </div>
+      </div>
+      <div class="squad-item">
+        <div class="avatar">M<span class="status-dot red"></span></div>
+        <div class="squad-info">
+          <div class="squad-name">Mike</div>
+          <div class="squad-status">In class until 3:00</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Set Your Status -->
+  <div class="card">
+    <button class="btn" onclick="openStatusModal()">Update My Status</button>
+  </div>
+</div>
+
+<!-- Status Modal -->
+<div class="modal-overlay" id="statusModal">
+  <div class="modal">
+    <h2>What are you up to?</h2>
+    <div class="status-options">
+      <button class="status-btn" onclick="setStatus('Free to hang out', 'green')">🟢 Free</button>
+      <button class="status-btn" onclick="setStatus('Studying', 'orange')">🟠 Studying</button>
+      <button class="status-btn" onclick="setStatus('In Class', 'red')">🔴 In Class</button>
+      <button class="status-btn" onclick="setStatus('Sleeping', 'purple')">🟣 Sleeping</button>
+    </div>
+    <button class="btn" style="background:var(--line)" onclick="closeStatusModal()">Cancel</button>
+  </div>
+</div>
+
+<script>
+  // 1. Connect to Supabase
+  const SB_URL = 'https://tqgtrkdsxnvsfzcwixlb.supabase.co';
+  const SB_KEY = 'sb_publishable_qvpWVf_9AUlFzp3F5MTiEw_nu-Zp3dx';
+  const sb = supabase.createClient(SB_URL, SB_KEY);
+
+  // 2. Modal Logic
+  const modal = document.getElementById('statusModal');
+
+  function openStatusModal() {
+    modal.classList.add('on');
+  }
+
+  function closeStatusModal() {
+    modal.classList.remove('on');
+  }
+
+  function setStatus(statusText, colorClass) {
+    // For now, just show an alert. We will connect this to the DB next.
+    alert(`Status set to: ${statusText}`);
+    closeStatusModal();
+  }
+
+  // 3. Test Supabase Connection
+  console.log("CAMPUS OS Booting up...");
+  sb.auth.getSession().then(({ data: { session } }) => {
+    console.log("Supabase connected! Current session:", session);
+  });
+</script>
+
+</body>
+</html>
