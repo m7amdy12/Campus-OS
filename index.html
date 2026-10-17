@@ -120,6 +120,10 @@
       <h2 class="card-title">Campus Radar</h2>
       <div class="live-dot"></div>
     </div>
+    <div style="display:flex; gap:8px; margin-bottom:16px;">
+      <input type="text" id="radar-input" placeholder="What's happening on campus?" maxlength="60" style="flex:1; background:var(--bg); border:1px solid var(--line); color:var(--fg); padding:10px; border-radius:8px; font-size:14px; outline:none;">
+      <button class="btn" style="width:auto; padding:0 16px;" onclick="postRadar()">Post</button>
+    </div>
     <div id="radarFeed">
       <div class="radar-item" style="color:var(--mut); font-size:13px; text-align:center; padding:10px;">Radar loading...</div>
     </div>
@@ -230,6 +234,7 @@
     appContainer.style.display = 'block';
     document.getElementById('app-brand').innerHTML = `CAMPUS<span>OS</span> <span style="font-size:12px; color:var(--mut); margin-left:8px;">@${username}</span>`;
     loadStatuses();
+    loadRadar();
     listenToDatabase();
   }
 
@@ -265,8 +270,48 @@
     });
   }
 
+  // --- RADAR LOGIC ---
+  async function postRadar() {
+    const input = document.getElementById('radar-input');
+    const msg = input.value.trim();
+    if (!msg || !currentUser) return;
+    
+    input.value = ''; // clear immediately
+    await sb.from('radar').insert({
+      user_id: currentUser.id,
+      username: currentProfile.name,
+      message: msg
+    });
+    loadRadar();
+  }
+
+  async function loadRadar() {
+    const { data } = await sb.from('radar').select('*').order('created_at', { ascending: false }).limit(15);
+    const feed = document.getElementById('radarFeed');
+    feed.innerHTML = '';
+    
+    if (!data || data.length === 0) {
+      feed.innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px;">No updates yet. Be the first!</div>';
+      return;
+    }
+
+    data.forEach(item => {
+      const time = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const el = document.createElement('div');
+      el.className = 'radar-item';
+      el.innerHTML = `
+        <div class="radar-time">${time}</div>
+        <div class="radar-text"><b>@${item.username}</b>: ${item.message}</div>
+      `;
+      feed.appendChild(el);
+    });
+  }
+
   function listenToDatabase() {
-    sb.channel('custom-all-channel').on('postgres_changes', { event: '*', schema: 'public', table: 'statuses' }, () => loadStatuses()).subscribe();
+    sb.channel('campus-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'statuses' }, () => loadStatuses())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'radar' }, () => loadRadar())
+      .subscribe();
   }
 
   async function init() {
